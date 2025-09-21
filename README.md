@@ -20,6 +20,7 @@ This document is a **step-by-step practical guide** to **Oracle ASM (Automatic S
 su - grid
 
 # Connect to ASM instance with SYSASM
+export ORACLE_SID=+ASM
 sqlplus / as sysasm
 ```
 
