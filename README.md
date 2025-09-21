@@ -37,6 +37,7 @@ export ORACLE_SID=+ASM
 sqlplus / as sysasm
 ```
 
+
 ---
 
 ## 📊 ASM Monitoring Views
@@ -79,6 +80,29 @@ FROM V$ASM_CLIENT;
 SELECT GROUP_NUMBER, OPERATION, STATE, POWER, SOFAR, EST_MINUTES
 FROM V$ASM_OPERATION;
 ```
+## 🐚 ASMCMD – Practical CLI Usage
+
+### 💻 Commands
+
+```bash
+# Start ASMCMD
+asmcmd -p
+
+# Diskgroup info
+lsdg
+lsdsk
+
+# Navigate
+cd DATA
+ls
+du
+
+# Create & manage files
+mkdir arch
+touch arch/file1.dbf
+cp arch/file1.dbf arch/file2.dbf
+mv arch/file2.dbf arch/file2_old.dbf
+rm arch/file1.dbf
 
 ---
 
@@ -281,32 +305,8 @@ ALTER DISKGROUP DATA REBALANCE POWER 0;
 
 ---
 
-## 🐚 ASMCMD – Practical CLI Usage
 
-### 💻 Commands
 
-```bash
-# Start ASMCMD
-asmcmd -p
-
-# Diskgroup info
-lsdg
-lsdsk
-
-# Navigate
-cd DATA
-ls
-du
-
-# Create & manage files
-mkdir arch
-touch arch/file1.dbf
-cp arch/file1.dbf arch/file2.dbf
-mv arch/file2.dbf arch/file2_old.dbf
-rm arch/file1.dbf
-
-# Show diskgroup parameters
-sp DATA
 
 # Exit
 exit
