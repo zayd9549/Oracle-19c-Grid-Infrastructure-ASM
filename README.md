@@ -1,14 +1,5 @@
-Perfect 👍 — let me now give you the **full refined doc** with all corrections applied:
 
-* Disk references are now **`ORCL:`** (not `/dev/oracleasm/disks/...`)
-* Added a **clarification section** showing the mapping from `/dev/sd*` → `oracleasm` → `ORCL:`
-* Preserved **pre-reqs, definitions, commands, and flow**
-
-Here’s the **complete GitHub-ready doc** 👇
-
----
-
-# Oracle 19c Grid Infrastructure & ASM – Complete Practical Guide
+## Oracle 19c Grid Infrastructure & ASM – Complete Practical Guide
 
 This guide provides a **step-by-step walkthrough** of **Oracle ASM (Automatic Storage Management)** in Oracle 19c.
 It includes **concepts, definitions, prerequisites, and practical commands** for **DBAs**.
