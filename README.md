@@ -24,7 +24,36 @@ export ORACLE_SID=+ASM
 sqlplus / as sysasm
 ```
 
----
+## 📊 ASM Monitoring Views
+
+⚠️ **Pre-requisites**
+
+* ASM instance running.
+* Diskgroup exists.
+
+💻 **Commands**
+
+```sql
+-- Diskgroup info
+SET LINES 200
+COL NAME FORMAT A15
+COL TYPE FORMAT A10
+COL STATE FORMAT A10
+SELECT NAME, TYPE, STATE, TOTAL_MB, FREE_MB FROM V$ASM_DISKGROUP;
+
+-- Disk info with FGs
+COL PATH FORMAT A30
+COL HEADER_STATUS FORMAT A15
+SELECT NAME AS DISK_NAME, PATH, FAILGROUP, HEADER_STATUS, STATE
+FROM V$ASM_DISK;
+
+-- ASM clients
+SELECT INSTANCE_NAME, DB_NAME, STATUS FROM V$ASM_CLIENT;
+
+-- Rebalance operations
+SELECT GROUP_NUMBER, OPERATION, STATE, POWER, SOFAR, EST_MINUTES
+FROM V$ASM_OPERATION;
+```
 
 ## ⚠️ Preparing Disks for ASM
 
@@ -47,6 +76,7 @@ oracleasm listdisks
 
 # Check if disk is part of existing diskgroup
 sqlplus / as sysasm
+
 SET LINES 200
 COL PATH FORMAT A30
 COL HEADER_STATUS FORMAT A15
@@ -256,49 +286,5 @@ exit
 
 ---
 
-## 📊 ASM Monitoring Views
 
-⚠️ **Pre-requisites**
 
-* ASM instance running.
-* Diskgroup exists.
-
-💻 **Commands**
-
-```sql
--- Diskgroup info
-SET LINES 200
-COL NAME FORMAT A15
-COL TYPE FORMAT A10
-COL STATE FORMAT A10
-SELECT NAME, TYPE, STATE, TOTAL_MB, FREE_MB FROM V$ASM_DISKGROUP;
-
--- Disk info with FGs
-COL PATH FORMAT A30
-COL HEADER_STATUS FORMAT A15
-SELECT NAME AS DISK_NAME, PATH, FAILGROUP, HEADER_STATUS, STATE
-FROM V$ASM_DISK;
-
--- ASM clients
-SELECT INSTANCE_NAME, DB_NAME, STATUS FROM V$ASM_CLIENT;
-
--- Rebalance operations
-SELECT GROUP_NUMBER, OPERATION, STATE, POWER, SOFAR, EST_MINUTES
-FROM V$ASM_OPERATION;
-```
-
----
-
-## 🚀 Complete Practical Sequence Summary
-
-1. Prepare disks (identify, check status, register).
-2. Verify Candidate/Provisioned disks.
-3. Create diskgroup (ASMCA / SQL).
-4. Assign disks to Failure Groups if redundancy > External.
-5. Add disks to diskgroup/FGs.
-6. Drop disks from diskgroup/FGs.
-7. Rebalance diskgroup/FGs if needed.
-8. Navigate ASM files/disks via ASMCMD.
-9. Monitor diskgroup, disks, FGs, and rebalance via views.
-
----
