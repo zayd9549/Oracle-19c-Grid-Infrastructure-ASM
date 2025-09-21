@@ -1,37 +1,59 @@
-
 ## Oracle 19c Grid Infrastructure & ASM – Complete Practical Guide
 
-This document is a **step-by-step practical guide** to **Oracle ASM (Automatic Storage Management)** in **Oracle Grid Infrastructure 19c**, including **disk preparation, ASMCA, ASMCMD, manual SQL diskgroup operations, adding/dropping disks, rebalancing, and Failure Groups**.
+This guide provides a **step-by-step walkthrough** of **Oracle ASM (Automatic Storage Management)** in Oracle 19c.
+It includes **concepts, definitions, prerequisites, and practical commands** for **DBAs**.
 
 ---
 
 ## 🔑 Logging in to ASM Instance
 
-⚠️ **Pre-requisites**
+### 📘 Definition
 
-* ASM instance is running.
-* OS user `grid` (or equivalent) exists.
+* **ASM Instance**: A lightweight Oracle instance that manages diskgroups. It does not have data dictionary views like a normal DB instance but has its own fixed views (`V$ASM_*`).
+* **User Grid**: The OS user `grid` owns the Grid Infrastructure stack and ASM instance.
+* **SYSASM Role**: A special role for administering ASM.
+
+### 📝 Why Needed?
+
+Every ASM operation (create, drop, add, rebalance) must be executed inside the ASM instance.
+
+### ⚠️ Pre-requisites
+
+* ASM instance running.
+* OS user `grid` exists.
 * User has `SYSASM` privileges.
 
-💻 **Commands**
+### 💻 Commands (as `grid`)
 
 ```bash
 # Switch to Grid user
 su - grid
 
-# Connect to ASM instance with SYSASM
+# Set ASM instance SID
 export ORACLE_SID=+ASM
+
+# Connect with SYSASM
 sqlplus / as sysasm
 ```
 
+---
+
 ## 📊 ASM Monitoring Views
 
-⚠️ **Pre-requisites**
+### 📘 Definition
 
-* ASM instance running.
-* Diskgroup exists.
+ASM provides **dynamic performance views** (`V$ASM_*`) for monitoring diskgroups, disks, rebalancing, and connected clients.
 
-💻 **Commands**
+* `V$ASM_DISKGROUP` → Diskgroup-level info.
+* `V$ASM_DISK` → Physical disks and failure groups.
+* `V$ASM_CLIENT` → Databases using ASM.
+* `V$ASM_OPERATION` → Rebalance status.
+
+### 📝 Why Needed?
+
+Monitoring is critical to validate free space, redundancy, and rebalance operations.
+
+### 💻 Commands (in SQL\*Plus as SYSASM)
 
 ```sql
 -- Diskgroup info
@@ -39,252 +61,298 @@ SET LINES 200
 COL NAME FORMAT A15
 COL TYPE FORMAT A10
 COL STATE FORMAT A10
-SELECT NAME, TYPE, STATE, TOTAL_MB, FREE_MB FROM V$ASM_DISKGROUP;
+SELECT NAME, TYPE, STATE, TOTAL_MB, FREE_MB
+FROM V$ASM_DISKGROUP;
 
--- Disk info with FGs
+-- Disk info with Failgroups
 COL PATH FORMAT A30
 COL HEADER_STATUS FORMAT A15
 SELECT NAME AS DISK_NAME, PATH, FAILGROUP, HEADER_STATUS, STATE
 FROM V$ASM_DISK;
 
 -- ASM clients
-SELECT INSTANCE_NAME, DB_NAME, STATUS FROM V$ASM_CLIENT;
+SELECT INSTANCE_NAME, DB_NAME, STATUS
+FROM V$ASM_CLIENT;
 
 -- Rebalance operations
 SELECT GROUP_NUMBER, OPERATION, STATE, POWER, SOFAR, EST_MINUTES
 FROM V$ASM_OPERATION;
 ```
 
+---
+
 ## ⚠️ Preparing Disks for ASM
 
-⚠️ **Pre-requisites**
+### 📘 Definition
 
-* Identify new raw disks to be added.
-* Disks must **not be members** of any existing diskgroup.
-* Disks must be **Candidate or Provisioned**.
-* ASM instance must be running.
+* **Disk preparation** means partitioning raw devices and registering them with the Oracle ASM library driver.
+* **oracleasm tool** helps Linux OS register disks so ASM can recognize them.
 
-💻 **Commands**
+### 📝 Why Needed?
+
+ASM can only use disks labeled and registered through `oracleasm` (or UDEV rules).
+
+### ⚠️ Pre-requisites
+
+* Login as **root** for disk operations.
+* Disks must be free (Candidate/Provisioned).
+* ASM instance running.
+
+### 💻 Commands (as `root`)
 
 ```bash
-# List all attached disks at OS level
+# List available disks
 fdisk -l | grep sd
 lsblk
 
-# List disks already registered with ASM
-oracleasm listdisks
+# Partition new disks
+fdisk /dev/sdc   # DATA1
+fdisk /dev/sdd   # DATA2
+fdisk /dev/sde   # DATA4
 
-# Check if disk is part of existing diskgroup
+# Register disks with oracleasm
+oracleasm createdisk DATA1 /dev/sdc1
+oracleasm createdisk DATA2 /dev/sdd1
+oracleasm createdisk DATA4 /dev/sde1
+
+# Verify registered disks
+oracleasm listdisks
+```
+
+### 💻 Commands (as `grid`)
+
+```bash
+su - grid
+export ORACLE_SID=+ASM
 sqlplus / as sysasm
 
+-- Check if disks are Candidate
 SET LINES 200
 COL PATH FORMAT A30
 COL HEADER_STATUS FORMAT A15
 SELECT PATH, HEADER_STATUS, NAME AS DISKGROUP_NAME
 FROM V$ASM_DISK;
-
-# Register new disks with ASM
-oracleasm createdisk DISK1 /dev/sdb
-oracleasm createdisk DISK2 /dev/sdc
-
-# Verify registration
-oracleasm listdisks
 ```
 
 ---
 
 ## 📦 Creating a Diskgroup
 
-⚠️ **Pre-requisites**
+### 📘 Definition
 
-* ASM instance is running and ONLINE.
-* Candidate or Provisioned disks are available.
-* Disks are not members of any diskgroup.
-* Decide on redundancy: External, Normal, or High.
+* **Diskgroup**: A logical storage pool in ASM, made up of multiple disks.
+* **Redundancy Options**:
 
-💻 **Commands**
+  * **External**: No mirroring, depends on hardware RAID.
+  * **Normal**: 2-way mirroring.
+  * **High**: 3-way mirroring.
+
+### 📝 Why Needed?
+
+Every database file in ASM must reside inside a diskgroup.
+
+### ⚠️ Pre-requisites
+
+* ASM ONLINE.
+* Candidate disks available.
+* Decide redundancy level.
+
+### 💻 Commands (in SQL\*Plus as SYSASM)
 
 ```sql
--- Check candidate/provisioned disks
-SET LINES 200
-COL PATH FORMAT A30
-COL HEADER_STATUS FORMAT A15
-SELECT PATH, HEADER_STATUS, TOTAL_MB, FREE_MB
-FROM V$ASM_DISK
-WHERE HEADER_STATUS IN ('CANDIDATE','PROVISIONED');
+-- Create diskgroup with Normal redundancy
+CREATE DISKGROUP DATA1 NORMAL REDUNDANCY
+DISK 'ORCL:DATA1' NAME DATA1,
+     'ORCL:DATA2' NAME DATA2;
 
--- Create diskgroup (example: external redundancy)
-CREATE DISKGROUP DATA EXTERNAL REDUNDANCY
-DISK '/dev/oracleasm/disks/DISK1' NAME DATA1,
-     '/dev/oracleasm/disks/DISK2' NAME DATA2;
-
--- Verify diskgroup
-SET LINES 200
-COL NAME FORMAT A15
-COL TYPE FORMAT A10
-COL STATE FORMAT A10
+-- Verify
 SELECT NAME, TYPE, STATE, TOTAL_MB, FREE_MB
 FROM V$ASM_DISKGROUP;
 ```
 
 ---
 
-## 🛡️ Creating a Diskgroup with Failure Groups
+## 📂 Mount / Unmount Diskgroup
 
-⚠️ **Pre-requisites**
+### 📘 Definition
 
-* ASM instance is running and ONLINE.
-* Candidate or Provisioned disks are available.
-* Diskgroup redundancy must be **Normal or High**.
-* Disks must be assigned to **failure groups** based on physical layout.
+Mounting makes a diskgroup **available for use**.
+Unmounting makes it **inaccessible to databases**.
 
-💻 **Commands**
+### 📝 Why Needed?
+
+Used during maintenance, patching, or troubleshooting.
+
+### 💻 Commands (in SQL\*Plus as SYSASM)
 
 ```sql
--- Create diskgroup with failure groups
+-- Mount
+ALTER DISKGROUP DATA1 MOUNT;
+
+-- Dismount
+ALTER DISKGROUP DATA1 DISMOUNT;
+```
+
+---
+
+## ➕ Adding a Disk to Diskgroup
+
+### 📘 Definition
+
+Adding a disk **increases storage capacity** and triggers **rebalance**.
+
+### 📝 Why Needed?
+
+To scale storage without downtime.
+
+### 💻 Commands (in SQL\*Plus as SYSASM)
+
+```sql
+ALTER DISKGROUP DATA1 ADD DISK 'ORCL:DATA3' NAME DATA3;
+
+-- Monitor rebalance
+SELECT GROUP_NUMBER, OPERATION, STATE, POWER, SOFAR, EST_MINUTES
+FROM V$ASM_OPERATION;
+```
+
+---
+
+## ➖ Dropping a Disk from Diskgroup
+
+### 📘 Definition
+
+Dropping a disk triggers **rebalance** to redistribute extents to other disks.
+
+### 📝 Why Needed?
+
+For replacing faulty disks or decommissioning storage.
+
+### 💻 Commands (in SQL\*Plus as SYSASM)
+
+```sql
+ALTER DISKGROUP DATA1 DROP DISK DATA3;
+
+-- Monitor rebalance
+SELECT GROUP_NUMBER, OPERATION, STATE, POWER, SOFAR, EST_MINUTES
+FROM V$ASM_OPERATION;
+```
+
+---
+
+## 🗑️ Dropping a Diskgroup
+
+### 📘 Definition
+
+Completely removes the diskgroup and its contents.
+
+### 📝 Why Needed?
+
+For decommissioning or reclaiming storage.
+
+### 💻 Commands (in SQL\*Plus as SYSASM)
+
+```sql
+DROP DISKGROUP DATA1 INCLUDING CONTENTS;
+
+-- Verify
+SELECT NAME, STATE, TYPE FROM V$ASM_DISKGROUP;
+```
+
+---
+
+## 🛡️ Creating a Diskgroup with Failure Groups
+
+### 📘 Definition
+
+* **Failure Group (FG)**: Logical grouping of disks to protect against simultaneous failures (e.g., all disks in a storage shelf).
+* ASM ensures mirrored copies are stored across **different FGs**.
+
+### 📝 Why Needed?
+
+For **redundancy** across hardware boundaries.
+
+### ⚠️ Pre-requisites
+
+* Redundancy = Normal or High.
+* Disks assigned to correct FGs.
+
+### 💻 Commands (in SQL\*Plus as SYSASM)
+
+```sql
 CREATE DISKGROUP DATA NORMAL REDUNDANCY
 FAILGROUP FG1 DISK '/dev/oracleasm/disks/DISK1' NAME DATA1,
               '/dev/oracleasm/disks/DISK2' NAME DATA2
 FAILGROUP FG2 DISK '/dev/oracleasm/disks/DISK3' NAME DATA3,
               '/dev/oracleasm/disks/DISK4' NAME DATA4;
-
--- Verify diskgroup and FGs
-SELECT GROUP_NUMBER, NAME AS DISKGROUP_NAME, TYPE, STATE, TOTAL_MB, FREE_MB
-FROM V$ASM_DISKGROUP;
-
-SELECT PATH, NAME AS DISK_NAME, FAILGROUP, HEADER_STATUS, STATE
-FROM V$ASM_DISK;
 ```
-
-⚙️ **Clarifications**
-
-* Normal redundancy: 2 copies stored in different FGs.
-* High redundancy: 3 copies in different FGs.
-* External redundancy ignores FGs.
 
 ---
 
-## ➕ Adding a Disk to Diskgroup / Failure Group
+## ⚖️ Rebalancing Diskgroup / Failure Groups
 
-⚠️ **Pre-requisites**
+### 📘 Definition
 
-* Diskgroup is ONLINE.
-* Disk is Candidate/Provisioned.
-* Assign disk to a proper FG.
+* **Rebalance**: ASM redistributes data when disks are **added or removed**.
+* **POWER**: Controls speed (higher = faster, but more CPU/IO load).
 
-💻 **Commands**
+### 📝 Why Needed?
 
-```sql
--- Add disk to specific failure group
-ALTER DISKGROUP DATA ADD DISK '/dev/oracleasm/disks/DISK5' NAME DATA5 FAILGROUP FG1;
+To evenly balance extents for performance and redundancy.
 
--- Verify disk and FG
-SELECT PATH, NAME AS DISK_NAME, FAILGROUP, HEADER_STATUS, STATE
-FROM V$ASM_DISK;
-```
-
-⚙️ **Notes**
-
-* Adding disks to different FGs improves redundancy and rebalance efficiency.
-
----
-
-## ➖ Dropping a Disk from Diskgroup / Failure Group
-
-⚠️ **Pre-requisites**
-
-* Diskgroup is ONLINE.
-* Disk can be safely removed.
-* Remaining disks in other FGs maintain redundancy.
-
-💻 **Commands**
+### 💻 Commands (in SQL\*Plus as SYSASM)
 
 ```sql
--- Drop disk
-ALTER DISKGROUP DATA DROP DISK DATA2;
-
--- Verify diskgroup and FGs
-SELECT PATH, NAME AS DISK_NAME, FAILGROUP, HEADER_STATUS, STATE
-FROM V$ASM_DISK;
-```
-
-⚙️ **Notes**
-
-* ASM automatically rebalances remaining data across other FGs.
-
----
-
-## ⚖️ Rebalancing Diskgroup / Failure Group
-
-⚠️ **Pre-requisites**
-
-* Diskgroup is ONLINE.
-* No conflicting operations ongoing.
-
-💻 **Commands**
-
-```sql
--- Start rebalance with specified power
+-- Start rebalance
 ALTER DISKGROUP DATA REBALANCE POWER 5;
 
--- Monitor rebalance
+-- Monitor progress
 SELECT GROUP_NUMBER, OPERATION, STATE, POWER, SOFAR, EST_MINUTES
 FROM V$ASM_OPERATION;
 
--- Pause or cancel rebalance if needed
+-- Cancel rebalance
 ALTER DISKGROUP DATA REBALANCE CANCEL;
 ```
-
-⚙️ **Notes**
-
-* ASM redistributes mirrored extents across different FGs.
-* Proper FG assignment reduces risk of data loss in hardware failures.
 
 ---
 
 ## 🐚 ASMCMD – Practical CLI Usage
 
-⚠️ **Pre-requisites**
+### 📘 Definition
 
-* ASM instance is ONLINE.
-* Diskgroup exists.
+* **ASMCMD**: Command-line utility for ASM administration.
+* Provides UNIX-like shell commands for navigation and file operations.
 
-💻 **Commands**
+### 📝 Why Needed?
+
+Simplifies ASM management without SQL\*Plus.
+
+### 💻 Commands (as `grid`)
 
 ```bash
-# Start persistent ASMCMD shell
+# Start ASMCMD
 asmcmd -p
 
-# List all diskgroups
+# Diskgroup info
 lsdg
-
-# List all disks
 lsdsk
 
-# Navigate diskgroup
+# Navigate
 cd DATA
-
-# List files/directories
 ls
 du
 
-# Create directory and files
+# Create & manage files
 mkdir arch
 touch arch/file1.dbf
-
-# Copy, move, remove files
 cp arch/file1.dbf arch/file2.dbf
 mv arch/file2.dbf arch/file2_old.dbf
 rm arch/file1.dbf
 
-# Show diskgroup storage parameters
+# Show diskgroup parameters
 sp DATA
 
-# Exit ASMCMD
+# Exit
 exit
 ```
-
----
-
 
 
