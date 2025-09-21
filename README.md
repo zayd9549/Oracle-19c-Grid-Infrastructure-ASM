@@ -275,8 +275,8 @@ ALTER DISKGROUP DATA REBALANCE POWER 5;
 SELECT GROUP_NUMBER, OPERATION, STATE, POWER, SOFAR, EST_MINUTES
 FROM V$ASM_OPERATION;
 
--- Cancel rebalance
-ALTER DISKGROUP DATA REBALANCE CANCEL;
+-- Stop rebalance
+ALTER DISKGROUP DATA REBALANCE POWER 0;
 ```
 
 ---
@@ -313,6 +313,3 @@ exit
 ```
 
 
-
-
-Do you also want me to **embed GitHub-friendly diagrams (Mermaid)** back into this refined doc (ASM architecture, FG layout, redundancy) so the visuals appear alongside the commands?
