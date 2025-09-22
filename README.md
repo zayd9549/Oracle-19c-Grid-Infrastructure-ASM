@@ -129,7 +129,9 @@ Storage addition from VirtualBox:
 <img width="700" height="350" alt="image" src="https://github.com/user-attachments/assets/5edc9585-a7dc-4215-b333-e583ab455d9b" />
 <img width="700" height="350" alt="image" src="https://github.com/user-attachments/assets/1dd575f5-b075-497c-9f3f-94aa2969321f" />
 <img width="700" height="350" alt="image" src="https://github.com/user-attachments/assets/5a9fa7e2-d284-49a5-b85d-573d6894c253" />
-<img width="759" height="380" alt="image" src="https://github.com/user-attachments/assets/23b4d589-a51b-4ce8-8286-a968cca03860" />
+
+Repeat steps **2–4** for the other disks:
+
 
 
 ```bash
