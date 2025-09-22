@@ -122,7 +122,17 @@ ASM can only use disks labeled and registered through `oracleasm` (or UDEV rules
 * Login as **root** for disk operations.
 * Disks must be free (Candidate/Provisioned).
 * ASM instance running.
+```
+Storage addition from VirtualBox:
 
+<img width="700" height="350" alt="image" src="https://github.com/user-attachments/assets/981c18d9-4c8a-4a90-a438-9cbfd50cab3a" />
+<img width="700" height="350" alt="image" src="https://github.com/user-attachments/assets/5edc9585-a7dc-4215-b333-e583ab455d9b" />
+<img width="700" height="350" alt="image" src="https://github.com/user-attachments/assets/1dd575f5-b075-497c-9f3f-94aa2969321f" />
+<img width="700" height="350" alt="image" src="https://github.com/user-attachments/assets/5a9fa7e2-d284-49a5-b85d-573d6894c253" />
+<img width="759" height="380" alt="image" src="https://github.com/user-attachments/assets/23b4d589-a51b-4ce8-8286-a968cca03860" />
+
+
+```bash
 ### 💻 Commands (as `root`)
 
 ```bash
